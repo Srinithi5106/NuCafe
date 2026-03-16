@@ -22,9 +22,11 @@ if 'cart'     not in st.session_state: st.session_state.cart     = {}
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_engine():
-    if not os.path.exists('simple_data.pkl') or not os.path.exists('menu.json'):
-        st.error("Run train_ai.py first!")
-        st.stop()
+    # Auto-generate menu.json and simple_data.pkl if missing
+    if not os.path.exists('menu.json') or not os.path.exists('simple_data.pkl'):
+        import train_ai
+        train_ai.train_and_save()
+
     with open('menu.json', 'r') as f:
         menu_data = json.load(f)
     menu = pd.DataFrame(menu_data)
@@ -131,6 +133,7 @@ def get_global_trending_map():
 def get_match_score(food_name, user_categories):
     item_rows = menu_df[menu_df['food_name'] == food_name]
     if item_rows.empty: return 50
+    if not st.session_state.user_id: return 50
     item = item_rows.iloc[0]
     u_idx   = st.session_state.user_id % 1000
     f_idx   = ai['food_to_idx'].get(food_name, 0)
