@@ -1,0 +1,40 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true"]
+```
+
+If yours is different, paste it here and I'll fix it.
+
+---
+
+## Step 3 — Deploy on Railway
+
+**1.** Go to **railway.app** → Login with GitHub
+
+**2.** Click **New Project → Deploy from GitHub repo**
+
+**3.** Select **Srinithi5106/NuCafe-2.0**
+
+**4.** Add environment variable:
+```
+Settings → Variables → Add
+
+NAME:   DATABASE_URL
+VALUE:  postgresql://neondb_owner:npg_0lSMa2wbyHVF@ep-icy-bird-a1ix5uqr-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+```
+
+**5.** Get public URL:
+```
+Settings → Networking → Generate Domain
