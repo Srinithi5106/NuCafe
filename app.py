@@ -214,7 +214,7 @@ def get_dish_image(food_name, category):
         "vada":          "https://images.unsplash.com/photo-1630383249896-424e482df921?w=600&auto=format&fit=crop&q=60",
         "pongal":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
         "uttapam":       "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&auto=format&fit=crop&q=60",
-        "rava kesari":   "https://images.unsplash.com/photo-1598348952439-7b45c2c0e3c1?w=600&auto=format&fit=crop&q=60",
+        "rava kesari":   "https://images.unsplash.com/photo-1606913084603-3b5c8b3b2b56?w=600&auto=format&fit=crop&q=60",
         "bhat":          "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&auto=format&fit=crop&q=60",
         # Biryani
         "biryani":       "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=60",
@@ -239,16 +239,16 @@ def get_dish_image(food_name, category):
         # Snacks
         "samosa":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
         "kachori":       "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
-        "bhel puri":     "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
-        "pani puri":     "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
-        "vada pav":      "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        "bhel puri":     "https://images.unsplash.com/photo-1567337710282-00832b415979?w=600&auto=format&fit=crop&q=60",
+        "pani puri":     "https://images.unsplash.com/photo-1567337710282-00832b415979?w=600&auto=format&fit=crop&q=60",
+        "vada pav":      "https://images.unsplash.com/photo-1567337710282-00832b415979?w=600&auto=format&fit=crop&q=60",
         "pakoda":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
-        "chat basket":   "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        "chat basket":   "https://images.unsplash.com/photo-1567337710282-00832b415979?w=600&auto=format&fit=crop&q=60",
         # Beverages
         "filter coffee": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60",
         "masala chai":   "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60",
         "cold coffee":   "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60",
-        "lassi":         "https://images.unsplash.com/photo-1571006682768-810a2b8dbf69?w=600&auto=format&fit=crop&q=60",
+        "lassi":         "https://images.unsplash.com/photo-1568641800949-1f8b2a4ed7b4?w=600&auto=format&fit=crop&q=60",
         "badam milk":    "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=600&auto=format&fit=crop&q=60",
         "fruit juice":   "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&auto=format&fit=crop&q=60",
     }
@@ -347,17 +347,35 @@ with st.sidebar:
         st.markdown("### 📋 Recent Activity")
         history = db.query(Order).filter_by(
             user_id=st.session_state.user_id
-        ).order_by(Order.timestamp.desc()).limit(3).all()
+        ).order_by(Order.timestamp.desc()).limit(5).all()
         for h in history:
-            st.markdown(f"""
-            <div style='background:#222;padding:8px;border-radius:4px;margin-bottom:8px;
-                        border-left:3px solid #E50914;display:flex;align-items:center;gap:10px;'>
-                <img src="{h.display_image}" style="width:40px;height:40px;border-radius:4px;object-fit:cover;">
-                <div>
-                    <div style='font-size:0.85rem;'>{h.food_name}</div>
-                    <div style='color:#777;font-size:0.7rem;'>{h.timestamp.strftime('%d %b, %H:%M')}</div>
-                </div>
-            </div>""", unsafe_allow_html=True)
+            img_url = get_dish_image(h.food_name, h.category)
+            col_img, col_info, col_btn = st.columns([1, 3, 1.2])
+            with col_img:
+                st.markdown(f"""<img src="{img_url}"
+                    style="width:42px;height:42px;border-radius:6px;object-fit:cover;margin-top:4px;">
+                """, unsafe_allow_html=True)
+            with col_info:
+                st.markdown(f"""
+                <div style='font-size:0.85rem;font-weight:600;color:#eee;margin-top:4px;'>{h.food_name}</div>
+                <div style='color:#777;font-size:0.7rem;'>₹{int(h.price)} · {h.timestamp.strftime('%d %b, %H:%M')}</div>
+                """, unsafe_allow_html=True)
+            with col_btn:
+                if st.button("🔁", key=f"reorder_{h.id}", help=f"Reorder {h.food_name}"):
+                    row = menu_df[menu_df['food_name'] == h.food_name]
+                    if not row.empty:
+                        info = row.iloc[0]
+                        if h.food_name in st.session_state.cart:
+                            st.session_state.cart[h.food_name]['qty'] += 1
+                        else:
+                            st.session_state.cart[h.food_name] = {
+                                'price':    float(info['price']),
+                                'qty':      1,
+                                'category': str(info['category']),
+                            }
+                        st.toast(f"✅ {h.food_name} added to cart!")
+                        st.rerun()
+            st.markdown("<hr style='border:none;border-top:1px solid #2a2a2a;margin:4px 0;'>", unsafe_allow_html=True)
 
     st.divider()
 
