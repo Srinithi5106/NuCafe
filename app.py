@@ -33,6 +33,12 @@ def load_engine():
     if not menu.empty:
         menu['prep_norm']  = (menu['prep_time'] - menu['prep_time'].min()) / (menu['prep_time'].max() - menu['prep_time'].min() + 1e-5)
         menu['price_norm'] = (menu['price']     - menu['price'].min())     / (menu['price'].max()     - menu['price'].min()     + 1e-5)
+        # Generate deterministic ratings based on item name hash
+        import hashlib
+        def gen_rating(name):
+            h = int(hashlib.md5(name.encode()).hexdigest(), 16)
+            return round(3.5 + (h % 16) * 0.1, 1)  # 3.5 to 5.0
+        menu['rating'] = menu['food_name'].apply(gen_rating)
     with open('simple_data.pkl', 'rb') as f:
         brain = pickle.load(f)
     return menu, brain
@@ -197,7 +203,71 @@ PAIRS = {
     "fruit juice":   [("burger", 1.5), ("pizza", 1.5), ("momos", 1.5)],
 }
 
-# Category fallback for items with no keyword match
+# ── Smart image mapping — keyword → relevant Unsplash photo ─────────────────
+def get_dish_image(food_name, category):
+    name = food_name.lower()
+    # Specific dish matches first
+    IMAGE_MAP = {
+        # South Indian
+        "dosa":          "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&auto=format&fit=crop&q=60",
+        "idli":          "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=600&auto=format&fit=crop&q=60",
+        "vada":          "https://images.unsplash.com/photo-1630383249896-424e482df921?w=600&auto=format&fit=crop&q=60",
+        "pongal":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
+        "uttapam":       "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&auto=format&fit=crop&q=60",
+        "rava kesari":   "https://images.unsplash.com/photo-1598348952439-7b45c2c0e3c1?w=600&auto=format&fit=crop&q=60",
+        "bhat":          "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&auto=format&fit=crop&q=60",
+        # Biryani
+        "biryani":       "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=60",
+        "hyderabadi":    "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=60",
+        "ambur":         "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=60",
+        "lucknowi":      "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=60",
+        "donne":         "https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=60",
+        # North Indian
+        "paneer tikka":  "https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=600&auto=format&fit=crop&q=60",
+        "butter chicken":"https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=600&auto=format&fit=crop&q=60",
+        "dal makhani":   "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=600&auto=format&fit=crop&q=60",
+        "naan":          "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&auto=format&fit=crop&q=60",
+        "chole bhature": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=600&auto=format&fit=crop&q=60",
+        "paratha":       "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&auto=format&fit=crop&q=60",
+        # Fastfood
+        "burger":        "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=60",
+        "pizza":         "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&auto=format&fit=crop&q=60",
+        "pasta":         "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&auto=format&fit=crop&q=60",
+        "sandwich":      "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=600&auto=format&fit=crop&q=60",
+        "french fries":  "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&auto=format&fit=crop&q=60",
+        "momos":         "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=60",
+        # Snacks
+        "samosa":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
+        "kachori":       "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
+        "bhel puri":     "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        "pani puri":     "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        "vada pav":      "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        "pakoda":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
+        "chat basket":   "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=600&auto=format&fit=crop&q=60",
+        # Beverages
+        "filter coffee": "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60",
+        "masala chai":   "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60",
+        "cold coffee":   "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60",
+        "lassi":         "https://images.unsplash.com/photo-1571006682768-810a2b8dbf69?w=600&auto=format&fit=crop&q=60",
+        "badam milk":    "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=600&auto=format&fit=crop&q=60",
+        "fruit juice":   "https://images.unsplash.com/photo-1600271886742-f049cd451bba?w=600&auto=format&fit=crop&q=60",
+    }
+    # Check keyword matches
+    for keyword, url in IMAGE_MAP.items():
+        if keyword in name:
+            return url
+    # Category fallback
+    CAT_IMAGES = {
+        "South Indian": "https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=600&auto=format&fit=crop&q=60",
+        "North Indian": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=600&auto=format&fit=crop&q=60",
+        "Biryani":      "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=60",
+        "Beverage":     "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60",
+        "Fastfood":     "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=60",
+        "Snack":        "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=60",
+    }
+    return CAT_IMAGES.get(category, "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=60")
+
+# Category fallback for complementary recs
 CAT_FALLBACK = {
     "South Indian": ["Beverage", "Snack"],
     "Biryani":      ["Beverage", "Snack"],
@@ -369,8 +439,9 @@ def render_row(title, foods, icon):
             if item_rows.empty: continue
             item      = item_rows.iloc[0]
             match     = get_match_score(name, user_cats)
-            temp_order = Order(food_name=name, category=item['category'], image=item.get('image'))
-            img_url    = temp_order.display_image
+            img_url = get_dish_image(name, item['category'])
+            rating  = item.get('rating', 4.0)
+            stars   = '★' * int(rating) + '☆' * (5 - int(rating))
             with cols[idx]:
                 st.markdown(f"""
                 <div class="food-card">
@@ -381,6 +452,7 @@ def render_row(title, foods, icon):
                     <div class="match-tag">{match}% Match</div>
                     <div class="card-content">
                         <div class="food-title">{name}</div>
+                        <div style="color:#f5a623;font-size:0.8rem;margin:2px 0;">{stars} <span style="color:#999;font-size:0.75rem;">{rating}</span></div>
                         <div style="color:#777;font-size:0.75rem;margin-bottom:8px;">
                             {item['category']} • ₹{item['price']} • {item['prep_time']}m
                         </div>
