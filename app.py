@@ -169,7 +169,7 @@ st.markdown("""
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. SCORING ENGINE
 # ─────────────────────────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=120)
 def get_user_order_categories(user_id):
     with Session() as db:
         orders = db.query(Order.category).filter_by(user_id=user_id).all()
@@ -470,7 +470,7 @@ def render_row(title, foods, icon):
             img_url   = get_dish_image(name, item['category'])
             rating    = item.get('rating', 4.0)
             stars     = '★' * int(rating) + '☆' * (5 - int(rating))
-            wait_mins = predict_wait_time(name, item['category'])
+            wait_mins = wait_map.get(name, predict_wait_time(name, item['category']))
             wt_color, wt_label = wait_color(wait_mins)
             with cols[idx]:
                 st.markdown(f"""
@@ -509,6 +509,29 @@ def render_row(title, foods, icon):
 # ─────────────────────────────────────────────────────────────────────────────
 # 9. MAIN INTERFACE
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Pre-compute wait times once — used by ALL render_row calls below
+@st.cache_data(ttl=300)
+def get_all_wait_times():
+    result = {}
+    for _, row in menu_df.iterrows():
+        name = row['food_name']
+        cat  = row['category']
+        CATEGORY_BASE = {
+            "South Indian":10,"North Indian":20,"Biryani":25,
+            "Beverage":5,"Fastfood":12,"Snack":8
+        }
+        bp   = CATEGORY_BASE.get(cat, int(row['prep_time']))
+        now  = now_ist()
+        hour = now.hour
+        rush = 1.6 if 12<=hour<=14 else (1.5 if 19<=hour<=21 else (1.1 if 9<=hour<=11 else 1.0))
+        q    = get_queue_length()
+        est  = max(3, int(round(bp * rush + q * 1.2)))
+        result[name] = est
+    return result
+
+wait_map = get_all_wait_times()
+
 st.markdown("""
     <div style='margin-bottom:20px;'>
         <h1 style='color:#E50914;font-size:4rem;font-weight:900;margin:0;line-height:1;'>NuCafé</h1>
@@ -542,26 +565,7 @@ with time_col2:
         </span>
     </div>""", unsafe_allow_html=True)
 
-@st.cache_data(ttl=300)
-def get_all_wait_times():
-    result = {}
-    for _, row in menu_df.iterrows():
-        name = row['food_name']
-        cat  = row['category']
-        CATEGORY_BASE = {
-            "South Indian":10,"North Indian":20,"Biryani":25,
-            "Beverage":5,"Fastfood":12,"Snack":8
-        }
-        bp   = CATEGORY_BASE.get(cat, int(row['prep_time']))
-        now  = now_ist()
-        hour = now.hour
-        rush = 1.6 if 12<=hour<=14 else (1.5 if 19<=hour<=21 else (1.1 if 9<=hour<=11 else 1.0))
-        q    = get_queue_length()
-        est  = max(3, int(round(bp * rush + q * 1.2)))
-        result[name] = est
-    return result
 
-wait_map = get_all_wait_times()
 
 time_filtered = [(name, wait_map.get(name, 15)) for name in all_items
                  if wait_map.get(name, 15) <= break_time]
