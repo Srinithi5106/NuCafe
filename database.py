@@ -1,7 +1,7 @@
 import hashlib
 import datetime
 import os
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -50,6 +50,16 @@ class Order(Base):
             "Snack":        "https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=600",
         }
         return category_map.get(self.category, DEFAULT_PLACEHOLDER)
+
+class KitchenQueue(Base):
+    """Tracks active orders in kitchen — used to estimate queue_length."""
+    __tablename__ = 'kitchen_queue'
+    id         = Column(Integer, primary_key=True)
+    food_name  = Column(String, nullable=False)
+    category   = Column(String, nullable=False)
+    status     = Column(String, default='pending')   # pending | done
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
 
 Base.metadata.create_all(engine)
 

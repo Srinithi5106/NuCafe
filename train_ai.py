@@ -159,13 +159,49 @@ def train_and_save():
     total_rules = sum(len(v) for v in rules.values())
     print(f"  Rules mined: {total_rules}")
 
-    # ── 5. Save ───────────────────────────────────────────────────────────────
+    # ── 5. Wait Time Model ───────────────────────────────────────────────────
+    print("⏱️  Training Wait Time Model...")
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.preprocessing import LabelEncoder
+
+    CATEGORY_BASE = {
+        "South Indian": 10, "North Indian": 20, "Biryani": 25,
+        "Beverage": 5,      "Fastfood": 12,    "Snack": 8,
+    }
+
+    # Synthesize 5000 order records
+    rng = np.random.default_rng(42)
+    wt_records = []
+    categories_list = list(CATEGORY_BASE.keys())
+    for _ in range(5000):
+        cat      = random.choice(categories_list)
+        bp       = max(3, CATEGORY_BASE[cat] + random.randint(-3, 5))
+        hour     = random.randint(8, 22)
+        is_wknd  = random.choice([0,0,0,1])
+        queue    = random.randint(0, 20)
+        rush     = 1.6 if 12<=hour<=14 else (1.5 if 19<=hour<=21 else (1.1 if 9<=hour<=11 else 1.0))
+        wait     = max(3, round(bp*rush + queue*1.2 + (3 if is_wknd else 0) + float(rng.normal(0,2)), 1))
+        wt_records.append([bp, cat, hour, queue, is_wknd, wait])
+
+    import pandas as _pd
+    wt_df = _pd.DataFrame(wt_records, columns=['base_prep_time','category','hour_of_day','queue_length','is_weekend','actual_wait'])
+    le_wt = LabelEncoder()
+    wt_df['category_enc'] = le_wt.fit_transform(wt_df['category'])
+    Xw = wt_df[['base_prep_time','category_enc','hour_of_day','queue_length','is_weekend']]
+    yw = wt_df['actual_wait']
+    wt_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
+    wt_model.fit(Xw, yw)
+    print(f"  Wait model trained on {len(wt_df)} samples")
+
+    # ── 6. Save ───────────────────────────────────────────────────────────────
     with open('simple_data.pkl', 'wb') as f:
         pickle.dump({
             'P': P, 'Q': Q,
-            'food_to_idx': food_to_idx,
-            'features':    latent,
-            'assoc_rules': dict(rules),
+            'food_to_idx':   food_to_idx,
+            'features':      latent,
+            'assoc_rules':   dict(rules),
+            'wait_model':    wt_model,
+            'wait_encoder':  le_wt,
         }, f)
 
     print(f"✅ Done! simple_data.pkl saved.")
